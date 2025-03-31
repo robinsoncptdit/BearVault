@@ -1,12 +1,11 @@
 #!/bin/bash
 # process_and_commit.sh
 # This script processes Bear note exports:
-# 1. Renames each markdown file in the temporary export folder using the first header (as title) with hyphens.
-# 2. Reads the last line for Bear tag formatting.
-# 3. Creates a nested folder structure in the repo root based on the tags.
-# 4. Copies the file into the appropriate folder(s).
-# 5. Deletes the file from the temporary folder.
-# 6. Commits all changes as one commit and optionally pushes to remote.
+# 1. Reads the last line for Bear tag formatting.
+# 2. Creates a nested folder structure in the repo root based on the tags.
+# 3. Copies the file into the appropriate folder(s).
+# 4. Deletes the file from the temporary folder.
+# 5. Commits all changes as one commit and optionally pushes to remote.
 
 # === CONFIGURATION ===
 REPO_PATH="$HOME/BearVault"            # Change to your repository root path.
@@ -14,44 +13,6 @@ TEMP_EXPORT="${REPO_PATH}/temp_export"     # Folder where Bear exports are place
 
 # Ensure TEMP_EXPORT exists.
 mkdir -p "$TEMP_EXPORT"
-
-# Function to clean up Bear's Markdown formatting
-cleanup_markdown() {
-    local file="$1"
-    local temp_file="${file}.tmp"
-    
-    # Use perl for more reliable text processing
-    perl -pe '
-        # Fix headers by removing extra # marks
-        s/^(#)\s*#+\s*/\1 /g;
-        # Ensure exactly one space after remaining #
-        s/^#([^\s])/# \1/g;
-        # Fix Bear ++text++ to **text**
-        s/\+\+([^\+]+)\+\+/*\1*/g;
-        # Fix underscores
-        s/__([^_]+)__/**\1**/g;
-        s/_([^_]+)_/*\1*/g;
-        # Fix bullets
-        s/^[\s]*[•○●][\s]*/-/g;
-        # Fix checkboxes
-        s/^[\s]*☐/- [ ]/g;
-        s/^[\s]*☒/- [x]/g;
-        # Fix Bear inline code
-        s/::([^:]+)::/`\1`/g;
-        # Fix Bear highlighting
-        s/==[\s]*([^=]+)[\s]*==/**\1**/g;
-        # Remove trailing whitespace
-        s/[\s]+$//g;
-    ' "$file" > "$temp_file"
-    
-    if [ -f "$temp_file" ]; then
-        mv "$temp_file" "$file"
-        return 0
-    else
-        echo "Error: Failed to clean up markdown in $file"
-        return 1
-    fi
-}
 
 echo "Processing files from $TEMP_EXPORT ..."
 
@@ -64,31 +25,8 @@ if [ ${#files[@]} -eq 0 ]; then
     exit 1
 fi
 
-# Function to get content hash of a file (excluding the last line with tags)
-get_content_hash() {
-    local file="$1"
-    # Get all lines except the last one and compute hash
-    head -n -1 "$file" | md5
-}
-
-# Function to check if a file is a duplicate within the same directory
-is_duplicate_in_dir() {
-    local source_file="$1"
-    local target_dir="$2"
-    local source_hash=$(get_content_hash "$source_file")
-    
-    # Check all .md files in target directory
-    for existing_file in "$target_dir"/*.md; do
-        [ -e "$existing_file" ] || continue
-        if [ "$(get_content_hash "$existing_file")" = "$source_hash" ]; then
-            return 0  # Found a duplicate
-        fi
-    done
-    return 1  # No duplicate found
-}
-
 # Process each Markdown file in TEMP_EXPORT
-for file in "$TEMP_EXPORT"/*.md; do
+for file in "${files[@]}"; do
     [ -e "$file" ] || continue
     echo "Processing $file"
     
@@ -120,6 +58,7 @@ find "$REPO_PATH" -type d -empty -delete
 echo "Processing complete."
 
 # === COMMIT CHANGES ===
+cd "$REPO_PATH" || exit 1
 echo "Preparing to commit changes in repository: $REPO_PATH"
 
 # Prompt the user for a commit message using osascript
