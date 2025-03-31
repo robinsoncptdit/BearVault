@@ -24,8 +24,8 @@ cleanup_markdown() {
     # Perform the cleanup operations
     sed -E '
         # Headers: Ensure proper spacing and format
-        s/^(#{1,6})([^[:space:]])/\1 \2/g                    # Fix missing space after #
-        s/^([[:space:]]*)(#{1,6})[[:space:]]*$/\1/g          # Remove empty headers
+        s/^(\#{1,6})([^[:space:]])/\1 \2/g                    # Fix missing space after #
+        s/^([[:space:]]*)(\#{1,6})[[:space:]]*$/\1/g          # Remove empty headers
         
         # Emphasis and Bold
         s/\+\+([^+]+)\+\+/**\1**/g                          # Convert Bear ++text++ to **text**
