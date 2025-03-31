@@ -52,45 +52,41 @@ for file in "${files[@]}"; do
     fi
 
     # ----- Step 2: Process tag information from the last line -----
-    # Extract the last line from the file.
+    # Extract the last line from the file
     last_line=$(tail -n 1 "$file")
     
-    # Check that the last line is a valid tag line.
-    # We assume a valid tag line starts with '#' (with no space after the #, which would indicate a header).
-    if [[ "$last_line" =~ ^\#[^[:space:]] ]]; then
-        tags_line="$last_line"
+    # Check that the last line is a valid tag line (starts with # not followed by a space)
+    if [[ "$last_line" =~ ^[[:space:]]*#[^[:space:]] ]]; then
+        # Remove leading/trailing whitespace
+        last_line=$(echo "$last_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        echo "Found tag line: $last_line"
+        
+        # Process each tag (split by whitespace)
+        for tag in $last_line; do
+            # Remove the leading '#' character
+            tag_content="${tag#\#}"
+            
+            # Create folder structure from the tag
+            # Split the tag by '/' to support nested tags
+            IFS='/' read -ra parts <<< "$tag_content"
+            folder_path="$REPO_PATH"
+            for part in "${parts[@]}"; do
+                folder_path="$folder_path/$part"
+            done
+            
+            # Create the target folder if it doesn't exist
+            mkdir -p "$folder_path"
+            
+            # Copy the file into the target folder
+            cp "$file" "$folder_path/"
+            echo "Copied $file to $folder_path"
+        done
     else
         echo "No valid tag line found in $file, skipping file."
         continue
     fi
     
-    # Trim whitespace from the tag line.
-    tags_line=$(echo "$tags_line" | sed 's/^[ \t]*//;s/[ \t]*$//')
-    
-    echo "Found tag line: $tags_line"
-    
-    # Assume tags are separated by whitespace if multiple tags exist.
-    for tag in $tags_line; do
-        # Remove the leading '#' character.
-        tag_content="${tag#\#}"
-        
-        # Create folder structure from the tag.
-        # Split the tag by '/' to support nested tags.
-        IFS='/' read -ra parts <<< "$tag_content"
-        folder_path="$REPO_PATH"
-        for part in "${parts[@]}"; do
-            folder_path="$folder_path/$part"
-        done
-        
-        # Create the target folder if it doesn't exist.
-        mkdir -p "$folder_path"
-        
-        # Copy the file into the target folder.
-        cp "$file" "$folder_path/"
-        echo "Copied $file to $folder_path"
-    done
-    
-    # Remove the processed file from TEMP_EXPORT.
+    # Remove the processed file from TEMP_EXPORT
     rm "$file"
     echo "Deleted $file from temp folder."
 done
@@ -101,7 +97,7 @@ echo "File processing complete."
 cd "$REPO_PATH" || exit 1
 echo "Preparing to commit changes in repository: $REPO_PATH"
 
-# Prompt the user for a commit message using osascript.
+# Prompt the user for a commit message using osascript
 commit_msg=$(osascript -e 'Tell application "System Events" to display dialog "Enter commit message for Bear exports:" default answer ""' -e 'text returned of result')
 
 if [ -n "$commit_msg" ]; then
