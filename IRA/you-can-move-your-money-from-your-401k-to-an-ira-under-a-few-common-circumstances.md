@@ -21,3 +21,4 @@
 	* 	If you do an **indirect rollover** (you receive the check), the IRS withholds **20%**, and you must deposit the full amount (including that 20%) into the IRA within **60 days** to avoid taxes and penalties.
 
 Want help drafting a call script or email to your 401(k) provider to check your options?
+#IRA
