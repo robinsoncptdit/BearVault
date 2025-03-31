@@ -20,12 +20,21 @@ cleanup_markdown() {
     local file="$1"
     local temp_file="${file}.tmp"
     
-    # Series of individual sed commands instead of one big script
-    sed -E '
-        # Fix headers: remove extra # markers and ensure proper spacing
-        s/^# +## /#/g
-        s/^# +###+ /#/g
-        s/^#([^[:space:]])/# \1/g
+    # First, fix headers with a more aggressive approach
+    awk '
+        # If line starts with # (possibly with leading spaces), fix header formatting
+        /^[[:space:]]*#/ {
+            # Trim leading/trailing spaces
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+            # Remove any ## after the first #
+            gsub(/^# +#{1,5}/, "#")
+            # Ensure exactly one space after #
+            gsub(/^#[[:space:]]*/, "# ")
+            print
+            next
+        }
+        # Print all other lines as is
+        { print }
     ' "$file" > "$temp_file"
 
     # Continue with other formatting fixes
