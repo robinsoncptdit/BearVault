@@ -125,8 +125,23 @@ done
 
 echo "File processing complete."
 
-# === COMMIT CHANGES ===
+# ----- Step 3: Clean up filenames by removing timestamps -----
+echo "Cleaning up filenames..."
 cd "$REPO_PATH" || exit 1
+
+# Find all .md files and remove timestamps from their names
+find . -type f -name "*.md" -not -path "./temp_export/*" | while read -r file; do
+    dir=$(dirname "$file")
+    filename=$(basename "$file")
+    # Remove timestamp pattern (dash followed by 10 digits) if present
+    newname=$(echo "$filename" | sed 's/-[0-9]\{10\}\.md$/.md/')
+    if [ "$filename" != "$newname" ]; then
+        mv "$file" "$dir/$newname"
+        echo "Cleaned filename: $filename -> $newname"
+    fi
+done
+
+# === COMMIT CHANGES ===
 echo "Preparing to commit changes in repository: $REPO_PATH"
 
 # Prompt the user for a commit message using osascript
