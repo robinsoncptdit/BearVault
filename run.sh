@@ -18,67 +18,29 @@ mkdir -p "$TEMP_EXPORT"
 # Function to clean up Bear's Markdown formatting
 cleanup_markdown() {
     local file="$1"
-    # Create a temporary file
     local temp_file="${file}.tmp"
     
-    # Perform the cleanup operations
-    sed -E '
-        # Headers: Ensure proper spacing and format
-        s/^(\#{1,6})([^[:space:]])/\1 \2/g                    # Fix missing space after #
-        s/^([[:space:]]*)(\#{1,6})[[:space:]]*$/\1/g          # Remove empty headers
-        
-        # Emphasis and Bold
-        s/\+\+([^+]+)\+\+/**\1**/g                          # Convert Bear ++text++ to **text**
-        s/\*\*[[:space:]]+([^*]+)[[:space:]]+\*\*/**\1**/g  # Clean up spaced bold
-        s/\*[[:space:]]+([^*]+)[[:space:]]+\*/*\1*/g        # Clean up spaced italics
-        s/__([^_]+)__/**\1**/g                              # Convert underscore bold to asterisk
-        s/_([^_]+)_/*\1*/g                                  # Convert underscore italic to asterisk
-        
-        # Lists
-        s/^[[:space:]]*•[[:space:]]*/-/g                    # Convert bullet points to dashes
-        s/^[[:space:]]*○[[:space:]]*/-/g                    # Convert open circles to dashes
-        s/^[[:space:]]*●[[:space:]]*/-/g                    # Convert filled circles to dashes
-        s/^(-|\*)[[:space:]]+/\1 /g                         # Ensure single space after list markers
-        
-        # Checkboxes
-        s/^[[:space:]]*\[[[:space:]]*x[[:space:]]*\]/- [x]/g  # Fix checked boxes
-        s/^[[:space:]]*\[[[:space:]]*\]/- [ ]/g               # Fix unchecked boxes
-        s/^[[:space:]]*☐/- [ ]/g                              # Convert Bear empty checkbox
-        s/^[[:space:]]*☒/- [x]/g                              # Convert Bear checked checkbox
-        
-        # Links and Images
-        s/\[\[([^]|]+)\]\]/[\1](\1)/g                      # Convert wiki-style links
-        s/\[\[([^]|]+)\|([^]]+)\]\]/[\2](\1)/g             # Convert wiki-style links with alt text
-        s/\!\[\[([^]]+)\]\]/![\1](\1)/g                    # Convert wiki-style images
-        
-        # Code Blocks and Inline Code
-        s/`[[:space:]]+([^`]+)[[:space:]]+`/`\1`/g         # Clean up spaced inline code
-        s/^```[[:space:]]*$/```/g                          # Clean up code block markers
-        
-        # Tables
-        s/\|[[:space:]]+/\| /g                             # Clean up table cell left spacing
-        s/[[:space:]]+\|/ \|/g                             # Clean up table cell right spacing
-        
-        # Horizontal Rules
-        s/^[[:space:]]*-{3,}[[:space:]]*$/---/g           # Standardize horizontal rules
-        s/^[[:space:]]*_{3,}[[:space:]]*$/---/g           # Convert underscore rules to dashes
-        
-        # Quotes
-        s/^>[[:space:]]+/> /g                              # Ensure single space after quote marker
-        
-        # Fix Common Bear-Specific Issues
-        s/\+\+([^+]+)\+\+/**\1**/g                        # Convert Bear emphasis
-        s/::([^:]+)::/`\1`/g                              # Convert Bear inline code
-        s/==[[:space:]]*([^=]+)[[:space:]]*==/**\1**/g    # Convert Bear highlighting
-        
-        # Clean up extra whitespace
-        s/[[:space:]]+$//g                                 # Remove trailing whitespace
-        s/^[[:space:]]+$//g                               # Remove lines with only whitespace
-        /^$/N;/^\n$/D                                     # Remove multiple blank lines
-    ' "$file" > "$temp_file"
+    # Series of individual sed commands instead of one big script
+    sed -E 's/^#([^[:space:]])/# \1/g' "$file" > "$temp_file" # Fix headers without space
+    sed -E -i '' 's/\+\+([^+]+)\+\+/**\1**/g' "$temp_file"    # Fix Bear ++text++
+    sed -E -i '' 's/__([^_]+)__/**\1**/g' "$temp_file"        # Fix underscores
+    sed -E -i '' 's/_([^_]+)_/*\1*/g' "$temp_file"            # Fix single underscores
+    sed -E -i '' 's/^[[:space:]]*•[[:space:]]*/-/g' "$temp_file" # Fix bullets
+    sed -E -i '' 's/^[[:space:]]*○[[:space:]]*/-/g' "$temp_file"
+    sed -E -i '' 's/^[[:space:]]*●[[:space:]]*/-/g' "$temp_file"
+    sed -E -i '' 's/^[[:space:]]*☐/- [ ]/g' "$temp_file"      # Fix checkboxes
+    sed -E -i '' 's/^[[:space:]]*☒/- [x]/g' "$temp_file"
+    sed -E -i '' 's/::([^:]+)::/`\1`/g' "$temp_file"          # Fix Bear inline code
+    sed -E -i '' 's/==[[:space:]]*([^=]+)[[:space:]]*==/**\1**/g' "$temp_file" # Fix highlighting
+    sed -E -i '' 's/[[:space:]]+$//g' "$temp_file"            # Remove trailing whitespace
     
-    # Replace original file with cleaned version
-    mv "$temp_file" "$file"
+    if [ -f "$temp_file" ]; then
+        mv "$temp_file" "$file"
+        return 0
+    else
+        echo "Error: Failed to clean up markdown in $file"
+        return 1
+    fi
 }
 
 echo "Processing files from $TEMP_EXPORT ..."
@@ -124,7 +86,10 @@ for file in "${files[@]}"; do
 
     # Clean up the Markdown formatting
     echo "Cleaning up Markdown formatting..."
-    cleanup_markdown "$file"
+    if ! cleanup_markdown "$file"; then
+        echo "Warning: Markdown cleanup failed for $file"
+        continue
+    fi
 
     # ----- Step 1: Rename file based on the first header (title) -----
     # We assume the first header line is the title and starts with "# " (hash followed by a space).
@@ -134,12 +99,14 @@ for file in "${files[@]}"; do
         newname=$(echo "$title" | tr ' ' '-' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')
         newpath="${TEMP_EXPORT}/${newname}.md"
         # Avoid overwriting an existing file; append a timestamp if necessary.
-        if [ -e "$newpath" ]; then
+        if [ -e "$newpath" ] && [ "$newpath" != "$file" ]; then
             newpath="${TEMP_EXPORT}/${newname}-$(date +%s).md"
         fi
-        mv "$file" "$newpath"
-        echo "Renamed file to: $newpath"
-        file="$newpath"
+        if [ "$newpath" != "$file" ]; then
+            mv "$file" "$newpath"
+            echo "Renamed file to: $newpath"
+            file="$newpath"
+        fi
     else
         echo "No title header found in $file. Skipping renaming."
     fi
@@ -155,7 +122,6 @@ for file in "${files[@]}"; do
         echo "Found tag line: $last_line"
         
         # Process each tag (split by whitespace)
-        # This will handle multiple tags separated by spaces
         for tag in $last_line; do
             # Skip if this isn't a valid tag
             [[ "$tag" =~ ^#[^[:space:]] ]] || continue
@@ -164,7 +130,6 @@ for file in "${files[@]}"; do
             tag_content="${tag#\#}"
             
             # Create folder structure from the tag
-            # Split the tag by '/' to support nested tags
             IFS='/' read -ra parts <<< "$tag_content"
             folder_path="$REPO_PATH"
             for part in "${parts[@]}"; do
@@ -183,14 +148,13 @@ for file in "${files[@]}"; do
                 echo "Skipping duplicate file in $folder_path"
             fi
         done
+        
+        # Remove the processed file from TEMP_EXPORT
+        rm "$file"
+        echo "Deleted $file from temp folder."
     else
         echo "No valid tag line found in $file, skipping file."
-        continue
     fi
-    
-    # Remove the processed file from TEMP_EXPORT
-    rm "$file"
-    echo "Deleted $file from temp folder."
 done
 
 echo "File processing complete."
