@@ -21,7 +21,14 @@ cleanup_markdown() {
     local temp_file="${file}.tmp"
     
     # Series of individual sed commands instead of one big script
-    sed -E 's/^#([^[:space:]])/# \1/g' "$file" > "$temp_file" # Fix headers without space
+    sed -E '
+        # Fix headers: remove extra # markers and ensure proper spacing
+        s/^# +## /#/g
+        s/^# +###+ /#/g
+        s/^#([^[:space:]])/# \1/g
+    ' "$file" > "$temp_file"
+
+    # Continue with other formatting fixes
     sed -E -i '' 's/\+\+([^+]+)\+\+/**\1**/g' "$temp_file"    # Fix Bear ++text++
     sed -E -i '' 's/__([^_]+)__/**\1**/g' "$temp_file"        # Fix underscores
     sed -E -i '' 's/_([^_]+)_/*\1*/g' "$temp_file"            # Fix single underscores
