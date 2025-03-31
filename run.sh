@@ -26,6 +26,29 @@ if [ ${#files[@]} -eq 0 ]; then
     exit 1
 fi
 
+# Function to get content hash of a file (excluding the last line with tags)
+get_content_hash() {
+    local file="$1"
+    # Get all lines except the last one and compute hash
+    head -n -1 "$file" | md5
+}
+
+# Function to check if a file is a duplicate within the same directory
+is_duplicate_in_dir() {
+    local source_file="$1"
+    local target_dir="$2"
+    local source_hash=$(get_content_hash "$source_file")
+    
+    # Check all .md files in target directory
+    for existing_file in "$target_dir"/*.md; do
+        [ -e "$existing_file" ] || continue
+        if [ "$(get_content_hash "$existing_file")" = "$source_hash" ]; then
+            return 0  # Found a duplicate
+        fi
+    done
+    return 1  # No duplicate found
+}
+
 # Process each Markdown file in TEMP_EXPORT
 for file in "${files[@]}"; do
     # Skip if file doesn't exist (handles case where no files match the pattern)
@@ -81,9 +104,14 @@ for file in "${files[@]}"; do
             # Create the target folder if it doesn't exist
             mkdir -p "$folder_path"
             
-            # Copy the file into the target folder
-            cp "$file" "$folder_path/"
-            echo "Copied $file to $folder_path"
+            # Check for duplicates only within the same directory
+            if ! is_duplicate_in_dir "$file" "$folder_path"; then
+                # Copy the file into the target folder
+                cp "$file" "$folder_path/"
+                echo "Copied $file to $folder_path"
+            else
+                echo "Skipping duplicate file in $folder_path"
+            fi
         done
     else
         echo "No valid tag line found in $file, skipping file."
