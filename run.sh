@@ -88,102 +88,36 @@ is_duplicate_in_dir() {
 }
 
 # Process each Markdown file in TEMP_EXPORT
-for file in "${files[@]}"; do
-    # Skip if file doesn't exist (handles case where no files match the pattern)
+for file in "$TEMP_EXPORT"/*.md; do
     [ -e "$file" ] || continue
-
-    echo "Processing file: $file"
-
-    # Clean up the Markdown formatting FIRST
-    echo "Cleaning up Markdown formatting..."
-    if ! cleanup_markdown "$file"; then
-        echo "Warning: Markdown cleanup failed for $file"
-        continue
-    fi
-
-    # ----- Step 1: Rename file based on the first header (title) -----
-    # We assume the first header line is the title and starts with "# " (hash followed by a space).
-    title=$(grep -m 1 "^# " "$file" | sed 's/^# *//')
-    if [ -n "$title" ]; then
-        # Replace spaces with hyphens, convert to lowercase, and remove unwanted characters.
-        newname=$(echo "$title" | tr ' ' '-' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')
-        newpath="${TEMP_EXPORT}/${newname}.md"
-        # Avoid overwriting an existing file; append a timestamp if necessary.
-        if [ -e "$newpath" ] && [ "$newpath" != "$file" ]; then
-            newpath="${TEMP_EXPORT}/${newname}-$(date +%s).md"
-        fi
-        if [ "$newpath" != "$file" ]; then
-            mv "$file" "$newpath"
-            echo "Renamed file to: $newpath"
-            file="$newpath"
-        fi
-    else
-        echo "No title header found in $file. Skipping renaming."
-    fi
-
-    # ----- Step 2: Process tag information from the last line -----
-    # Extract the last line from the file and fix tag formatting
-    last_line=$(tail -n 1 "$file" | sed -E 's/# ([^#])/\#\1/g')
+    echo "Processing $file"
     
-    # Check that the last line contains at least one valid tag
-    if [[ "$last_line" =~ ^[[:space:]]*#[^[:space:]] ]]; then
-        # Remove leading/trailing whitespace
-        last_line=$(echo "$last_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        echo "Found tag line: $last_line"
-        
-        # Process each tag (split by whitespace)
+    # Get the last line for tags
+    last_line=$(tail -n 1 "$file")
+    
+    # Process each tag in the last line
+    if [[ "$last_line" =~ ^.*#[^[:space:]] ]]; then
+        echo "Found tags: $last_line"
+        # Split on spaces and process each tag
         for tag in $last_line; do
-            # Skip if this isn't a valid tag
-            [[ "$tag" =~ ^#[^[:space:]] ]] || continue
-            
-            # Remove the leading '#' character
-            tag_content="${tag#\#}"
-            
-            # Create folder structure from the tag
-            IFS='/' read -ra parts <<< "$tag_content"
-            folder_path="$REPO_PATH"
-            for part in "${parts[@]}"; do
-                folder_path="$folder_path/$part"
-            done
-            
-            # Create the target folder if it doesn't exist
-            mkdir -p "$folder_path"
-            
-            # Check for duplicates only within the same directory
-            if ! is_duplicate_in_dir "$file" "$folder_path"; then
-                # Copy the file into the target folder
-                cp "$file" "$folder_path/"
-                echo "Copied $file to $folder_path"
-            else
-                echo "Skipping duplicate file in $folder_path"
+            if [[ "$tag" =~ ^# ]]; then
+                # Remove the # and create directory
+                tag_dir="${tag#\#}"
+                mkdir -p "$REPO_PATH/$tag_dir"
+                cp "$file" "$REPO_PATH/$tag_dir/"
             fi
         done
-        
-        # Remove the processed file from TEMP_EXPORT
+        # Remove the processed file
         rm "$file"
-        echo "Deleted $file from temp folder."
     else
-        echo "No valid tag line found in $file, skipping file."
+        echo "No tags found in $file"
     fi
 done
 
-echo "File processing complete."
+# Clean up any empty directories
+find "$REPO_PATH" -type d -empty -delete
 
-# ----- Step 3: Clean up filenames by removing timestamps -----
-echo "Cleaning up filenames..."
-cd "$REPO_PATH" || exit 1
-
-# Find all .md files and remove timestamps from their names
-find . -type f -name "*.md" -not -path "./temp_export/*" | while read -r file; do
-    dir=$(dirname "$file")
-    filename=$(basename "$file")
-    # Remove timestamp pattern (dash followed by 10 digits) if present
-    newname=$(echo "$filename" | sed 's/-[0-9]\{10\}\.md$/.md/')
-    if [ "$filename" != "$newname" ]; then
-        mv "$file" "$dir/$newname"
-        echo "Cleaned filename: $filename -> $newname"
-    fi
-done
+echo "Processing complete."
 
 # === COMMIT CHANGES ===
 echo "Preparing to commit changes in repository: $REPO_PATH"
