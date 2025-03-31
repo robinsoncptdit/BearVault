@@ -20,35 +20,29 @@ cleanup_markdown() {
     local file="$1"
     local temp_file="${file}.tmp"
     
-    # First, fix headers with a more aggressive approach
-    awk '
-        # If line starts with # (possibly with leading spaces), fix header formatting
-        /^[[:space:]]*#/ {
-            # Trim leading/trailing spaces
-            gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-            # Remove any ## after the first #
-            gsub(/^# +#{1,5}/, "#")
-            # Ensure exactly one space after #
-            gsub(/^#[[:space:]]*/, "# ")
-            print
-            next
-        }
-        # Print all other lines as is
-        { print }
+    # Use perl for more reliable text processing
+    perl -pe '
+        # Fix headers by removing extra # marks
+        s/^(#)\s*#+\s*/\1 /g;
+        # Ensure exactly one space after remaining #
+        s/^#([^\s])/# \1/g;
+        # Fix Bear ++text++ to **text**
+        s/\+\+([^\+]+)\+\+/*\1*/g;
+        # Fix underscores
+        s/__([^_]+)__/**\1**/g;
+        s/_([^_]+)_/*\1*/g;
+        # Fix bullets
+        s/^[\s]*[•○●][\s]*/-/g;
+        # Fix checkboxes
+        s/^[\s]*☐/- [ ]/g;
+        s/^[\s]*☒/- [x]/g;
+        # Fix Bear inline code
+        s/::([^:]+)::/`\1`/g;
+        # Fix Bear highlighting
+        s/==[\s]*([^=]+)[\s]*==/**\1**/g;
+        # Remove trailing whitespace
+        s/[\s]+$//g;
     ' "$file" > "$temp_file"
-
-    # Continue with other formatting fixes
-    sed -E -i '' 's/\+\+([^+]+)\+\+/**\1**/g' "$temp_file"    # Fix Bear ++text++
-    sed -E -i '' 's/__([^_]+)__/**\1**/g' "$temp_file"        # Fix underscores
-    sed -E -i '' 's/_([^_]+)_/*\1*/g' "$temp_file"            # Fix single underscores
-    sed -E -i '' 's/^[[:space:]]*•[[:space:]]*/-/g' "$temp_file" # Fix bullets
-    sed -E -i '' 's/^[[:space:]]*○[[:space:]]*/-/g' "$temp_file"
-    sed -E -i '' 's/^[[:space:]]*●[[:space:]]*/-/g' "$temp_file"
-    sed -E -i '' 's/^[[:space:]]*☐/- [ ]/g' "$temp_file"      # Fix checkboxes
-    sed -E -i '' 's/^[[:space:]]*☒/- [x]/g' "$temp_file"
-    sed -E -i '' 's/::([^:]+)::/`\1`/g' "$temp_file"          # Fix Bear inline code
-    sed -E -i '' 's/==[[:space:]]*([^=]+)[[:space:]]*==/**\1**/g' "$temp_file" # Fix highlighting
-    sed -E -i '' 's/[[:space:]]+$//g' "$temp_file"            # Remove trailing whitespace
     
     if [ -f "$temp_file" ]; then
         mv "$temp_file" "$file"
@@ -100,7 +94,7 @@ for file in "${files[@]}"; do
 
     echo "Processing file: $file"
 
-    # Clean up the Markdown formatting
+    # Clean up the Markdown formatting FIRST
     echo "Cleaning up Markdown formatting..."
     if ! cleanup_markdown "$file"; then
         echo "Warning: Markdown cleanup failed for $file"
