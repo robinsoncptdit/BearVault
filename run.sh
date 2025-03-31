@@ -112,10 +112,10 @@ for file in "${files[@]}"; do
     fi
 
     # ----- Step 2: Process tag information from the last line -----
-    # Extract the last line from the file
-    last_line=$(tail -n 1 "$file")
+    # Extract the last line from the file and fix tag formatting
+    last_line=$(tail -n 1 "$file" | sed -E 's/# ([^#])/\#\1/g')
     
-    # Check that the last line contains at least one valid tag (starts with # not followed by a space)
+    # Check that the last line contains at least one valid tag
     if [[ "$last_line" =~ ^[[:space:]]*#[^[:space:]] ]]; then
         # Remove leading/trailing whitespace
         last_line=$(echo "$last_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
