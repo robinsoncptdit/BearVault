@@ -15,6 +15,72 @@ TEMP_EXPORT="${REPO_PATH}/temp_export"     # Folder where Bear exports are place
 # Ensure TEMP_EXPORT exists.
 mkdir -p "$TEMP_EXPORT"
 
+# Function to clean up Bear's Markdown formatting
+cleanup_markdown() {
+    local file="$1"
+    # Create a temporary file
+    local temp_file="${file}.tmp"
+    
+    # Perform the cleanup operations
+    sed -E '
+        # Headers: Ensure proper spacing and format
+        s/^(#{1,6})([^[:space:]])/\1 \2/g                    # Fix missing space after #
+        s/^([[:space:]]*)(#{1,6})[[:space:]]*$/\1/g          # Remove empty headers
+        
+        # Emphasis and Bold
+        s/\+\+([^+]+)\+\+/**\1**/g                          # Convert Bear ++text++ to **text**
+        s/\*\*[[:space:]]+([^*]+)[[:space:]]+\*\*/**\1**/g  # Clean up spaced bold
+        s/\*[[:space:]]+([^*]+)[[:space:]]+\*/*\1*/g        # Clean up spaced italics
+        s/__([^_]+)__/**\1**/g                              # Convert underscore bold to asterisk
+        s/_([^_]+)_/*\1*/g                                  # Convert underscore italic to asterisk
+        
+        # Lists
+        s/^[[:space:]]*•[[:space:]]*/-/g                    # Convert bullet points to dashes
+        s/^[[:space:]]*○[[:space:]]*/-/g                    # Convert open circles to dashes
+        s/^[[:space:]]*●[[:space:]]*/-/g                    # Convert filled circles to dashes
+        s/^(-|\*)[[:space:]]+/\1 /g                         # Ensure single space after list markers
+        
+        # Checkboxes
+        s/^[[:space:]]*\[[[:space:]]*x[[:space:]]*\]/- [x]/g  # Fix checked boxes
+        s/^[[:space:]]*\[[[:space:]]*\]/- [ ]/g               # Fix unchecked boxes
+        s/^[[:space:]]*☐/- [ ]/g                              # Convert Bear empty checkbox
+        s/^[[:space:]]*☒/- [x]/g                              # Convert Bear checked checkbox
+        
+        # Links and Images
+        s/\[\[([^]|]+)\]\]/[\1](\1)/g                      # Convert wiki-style links
+        s/\[\[([^]|]+)\|([^]]+)\]\]/[\2](\1)/g             # Convert wiki-style links with alt text
+        s/\!\[\[([^]]+)\]\]/![\1](\1)/g                    # Convert wiki-style images
+        
+        # Code Blocks and Inline Code
+        s/`[[:space:]]+([^`]+)[[:space:]]+`/`\1`/g         # Clean up spaced inline code
+        s/^```[[:space:]]*$/```/g                          # Clean up code block markers
+        
+        # Tables
+        s/\|[[:space:]]+/\| /g                             # Clean up table cell left spacing
+        s/[[:space:]]+\|/ \|/g                             # Clean up table cell right spacing
+        
+        # Horizontal Rules
+        s/^[[:space:]]*-{3,}[[:space:]]*$/---/g           # Standardize horizontal rules
+        s/^[[:space:]]*_{3,}[[:space:]]*$/---/g           # Convert underscore rules to dashes
+        
+        # Quotes
+        s/^>[[:space:]]+/> /g                              # Ensure single space after quote marker
+        
+        # Fix Common Bear-Specific Issues
+        s/\+\+([^+]+)\+\+/**\1**/g                        # Convert Bear emphasis
+        s/::([^:]+)::/`\1`/g                              # Convert Bear inline code
+        s/==[[:space:]]*([^=]+)[[:space:]]*==/**\1**/g    # Convert Bear highlighting
+        
+        # Clean up extra whitespace
+        s/[[:space:]]+$//g                                 # Remove trailing whitespace
+        s/^[[:space:]]+$//g                               # Remove lines with only whitespace
+        /^$/N;/^\n$/D                                     # Remove multiple blank lines
+    ' "$file" > "$temp_file"
+    
+    # Replace original file with cleaned version
+    mv "$temp_file" "$file"
+}
+
 echo "Processing files from $TEMP_EXPORT ..."
 
 # Get list of all .md files in TEMP_EXPORT
@@ -55,6 +121,10 @@ for file in "${files[@]}"; do
     [ -e "$file" ] || continue
 
     echo "Processing file: $file"
+
+    # Clean up the Markdown formatting
+    echo "Cleaning up Markdown formatting..."
+    cleanup_markdown "$file"
 
     # ----- Step 1: Rename file based on the first header (title) -----
     # We assume the first header line is the title and starts with "# " (hash followed by a space).
