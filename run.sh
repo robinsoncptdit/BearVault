@@ -55,14 +55,18 @@ for file in "${files[@]}"; do
     # Extract the last line from the file
     last_line=$(tail -n 1 "$file")
     
-    # Check that the last line is a valid tag line (starts with # not followed by a space)
+    # Check that the last line contains at least one valid tag (starts with # not followed by a space)
     if [[ "$last_line" =~ ^[[:space:]]*#[^[:space:]] ]]; then
         # Remove leading/trailing whitespace
         last_line=$(echo "$last_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         echo "Found tag line: $last_line"
         
         # Process each tag (split by whitespace)
+        # This will handle multiple tags separated by spaces
         for tag in $last_line; do
+            # Skip if this isn't a valid tag
+            [[ "$tag" =~ ^#[^[:space:]] ]] || continue
+            
             # Remove the leading '#' character
             tag_content="${tag#\#}"
             
