@@ -164,3 +164,4 @@ You might want to add additional logging or error checks (e.g., verifying that f
 
 This script should meet your requirements for organizing exported Bear notes by their hashtags (ignoring markdown headers by focusing on the last line), cleaning up the temp directory, and committing/pushing the changes as a single commit. Let me know if you need any further modifications or clarifications!
 ```
+#first
