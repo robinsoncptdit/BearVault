@@ -61,6 +61,15 @@ echo "Processing complete."
 cd "$REPO_PATH" || exit 1
 echo "Preparing to commit changes in repository: $REPO_PATH"
 
+# Ask if user wants to commit now
+commit_choice=$(osascript -e 'Tell application "System Events" to display dialog "Would you like to commit the changes now?" buttons {"Wait", "Commit"} default button "Commit"' -e 'button returned of result')
+
+if [ "$commit_choice" = "Wait" ]; then
+    echo "Changes are ready. You can commit and push them manually when ready."
+    exit 0
+fi
+
+# If we get here, user chose to commit
 # Prompt the user for a commit message using osascript
 commit_msg=$(osascript -e 'Tell application "System Events" to display dialog "Enter commit message for Bear exports:" default answer ""' -e 'text returned of result')
 
@@ -68,19 +77,19 @@ if [ -n "$commit_msg" ]; then
     git add .
     git commit -m "$commit_msg"
     echo "Committed changes with message: $commit_msg"
+    
+    # === PUSH CHOICE ===
+    push_choice=$(osascript -e 'Tell application "System Events" to display dialog "Push commit to remote?" buttons {"Wait", "Push"} default button "Push"' -e 'button returned of result')
+
+    if [ "$push_choice" == "Push" ]; then
+        git push
+        echo "Pushed commit to remote."
+    else
+        echo "Push canceled. Commit remains local."
+    fi
 else
     echo "No commit message provided. Aborting commit."
     exit 1
-fi
-
-# === PUSH CHOICE ===
-push_choice=$(osascript -e 'Tell application "System Events" to display dialog "Push commit to remote?" buttons {"Wait", "Push"} default button "Push"' -e 'button returned of result')
-
-if [ "$push_choice" == "Push" ]; then
-    git push
-    echo "Pushed commit to remote."
-else
-    echo "Push canceled. Commit remains local."
 fi
 
 echo "Process complete."
