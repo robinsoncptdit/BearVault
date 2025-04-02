@@ -52,9 +52,6 @@ for file in "${files[@]}"; do
     fi
 done
 
-# Clean up any empty directories
-find "$REPO_PATH" -type d -empty -delete
-
 echo "Processing complete."
 
 # === COMMIT CHANGES ===
